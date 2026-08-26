@@ -29,6 +29,7 @@ html,body{height:100%;background:var(--bg);color:var(--txt);
   display:flex;align-items:center;justify-content:center;
   background:#170f10;border-bottom:1px solid var(--line)}
 #ad-top.empty{background:transparent;border-bottom-color:transparent}
+
 .ad-ph{font-size:11px;letter-spacing:.14em;color:#7a5a48;border:1px dashed #4b342c;
   border-radius:6px;padding:7px 16px;white-space:nowrap}
 
@@ -92,6 +93,14 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 #prev .p3{margin-top:3px;font-size:11px;color:var(--jade);display:flex;gap:6px;justify-content:center}
 #prev .p3 s{text-decoration:none;background:rgba(255,255,255,.08);border-radius:5px;padding:1px 6px}
 #prev .p3 s.bad{color:#ffb0a6}
+
+#btn-spd{position:absolute;right:8px;bottom:8px;z-index:3;min-width:48px;height:34px;
+  border-radius:11px;border:1px solid var(--line);background:rgba(24,15,14,.86);
+  color:var(--gold2);font-size:14px;font-weight:800;font-family:inherit;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;line-height:1;padding:0 8px}
+#btn-spd.fast{border-color:#5fd6b4;color:#eafff6;background:rgba(18,58,44,.9);
+  box-shadow:0 0 10px rgba(95,214,180,.25)}
+#btn-spd:active{background:#3a2320}
 
 #banner{position:absolute;left:0;right:0;top:30%;z-index:5;text-align:center;pointer-events:none;
   opacity:0;transition:opacity .22s}
@@ -331,6 +340,8 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
         <div class="p3" id="pv-tags"></div>
       </div>
 
+      <button id="btn-spd" aria-label="배속">×1</button>
+
       <div id="banner"><div class="b1"></div><div class="b2"></div></div>
       <div id="toast"></div>
 
@@ -356,7 +367,9 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
           <li><em>상성</em><span>창 &gt; 기병 &gt; 궁병 &gt; 창 (피해 <u>1.4배</u>)</span></li>
           <li><em>지형</em><span>언덕은 <u>높이 보너스</u> · 숲은 <u>방어</u></span></li>
           <li><em>배후</em><span>등 뒤에서 치면 <u>1.5배</u> · 옆은 1.2배<br>발밑 <u>화살표</u>가 바라보는 쪽입니다</span></li>
-          <li><em>자동</em><span><u>자동</u> 버튼을 켜면 전투와 보상까지<br>알아서 진행합니다 (보면서 키우기)</span></li>
+          <li><em>자동</em><span><u>자동</u> 버튼을 켜면 전투·보상·재시작까지<br>알아서 진행합니다 (보면서 키우기)</span></li>
+          <li><em>배속</em><span>화면 오른쪽 아래 <u>×1 · ×2 · ×3</u></span></li>
+          <li><em>무한</em><span>여섯 전투를 다 이기면 <u>무한 정벌</u>이 열립니다</span></li>
         </ul>
         <div class="rot">세로로 들고 하면 더 편해요</div>
         <button class="btn" id="btn-start">출진하기</button>
@@ -999,6 +1012,29 @@ var STAGES = [
    ds:'사람 중의 여포, 말 중의 적토. 마지막 상대다.',
    foes:[['seogi',1],['seogung',1],['yeopo',1]]}
 ];
+
+/* ── 무한 정벌 ───────────────────────────────────────────────
+   여섯 전투를 다 이기면 여기서부터다. 적 배수가 계속 올라가고
+   보스가 돌아가며 나온다. 끝은 전멸뿐이다. */
+var ENDLESS_THEME = ['gate','hill','waste','forest','plain'];
+var ENDLESS_BOSS  = ['hwaung','janggak','igak','yeopo'];
+var ENDLESS_POOL  = ['seogi','seogung','seolyang','yeoksa','hwangchang'];
+function endlessSpec(k){                       // k = 0,1,2...
+  var foes = [], n = Math.min(5, 3 + ((k/2)|0)), i;
+  for(i=0;i<n;i++) foes.push([ENDLESS_POOL[i], 1]);
+  foes.push([ENDLESS_BOSS[k % ENDLESS_BOSS.length], 1]);
+  return {
+    nm:'무한 정벌 ' + (k+1) + '차', sub:'끝없는 전장',
+    W:7, H:9, theme:ENDLESS_THEME[k % ENDLESS_THEME.length],
+    mul: 1.56 + 0.13*(k+1),
+    ds:'천하를 얻은 뒤에도 싸움은 끝나지 않는다. 적은 계속 강해진다.',
+    foes:foes, endless:k+1
+  };
+}
+/* 몇 번째 전투인지로 규격을 얻는다(6전까지는 고정, 그 뒤는 무한) */
+function stageAt(n){
+  return n < STAGES.length ? STAGES[n] : endlessSpec(n - STAGES.length);
+}
 
 /* ── 성장(보상) ─────────────────────────────────────────────── */
 var REWARDS = [
@@ -2577,7 +2613,7 @@ function startRun(facId, sd){
 
 /* ── 전투 시작 ─────────────────────────────────────────────── */
 function startBattle(sim){
-  var sp = STAGES[RUN.stage], i, j;
+  var sp = stageAt(RUN.stage), i, j;
   seed(RUN.seed + RUN.stage*7919 + 13);
   genMap(sp);
   B.units = [];
@@ -2748,15 +2784,15 @@ function winBattle(){
   if(alv === tot) RUN.score += SC_NOLOSS;
   SEL.state = 'idle'; hl = null;
   hideInfo(); hidePrev(); updateDock();
-  banner('승 리', STAGES[RUN.stage].nm, 1500);
+  banner('승 리', stageAt(RUN.stage).nm, 1500);
   wait(1.5, function(){
     RUN.stage++;
-    if(RUN.stage >= STAGES.length){
+    if(RUN.stage === STAGES.length){        // 여섯 전투 완주 — 천하통일
       RUN.score += SC_CLEAR;
       RUN.win = 1;
-      gameOver(true);
+      gameOver(true);                       // 여기서 '무한 정벌 계속'을 고를 수 있다
     } else {
-      showReward();
+      showReward();                         // 무한 정벌도 같은 흐름으로 이어진다
     }
   });
 }
@@ -3171,10 +3207,11 @@ function facCol(u){
 }
 function refreshHUD(){
   if(FAST) return;
-  var sp = STAGES[Math.min(RUN.stage, STAGES.length-1)];
+  var sp = stageAt(RUN.stage);
   $('hud-name').textContent = (B.phase==='battle') ? sp.nm : '삼국영웅전';
   $('hud-sub').textContent = (B.phase==='battle')
-    ? ('제 ' + (RUN.stage+1) + ' 전 · ' + sp.sub + ' · ' + RUN.score + '점')
+    ? ((sp.endless ? '무한 ' + sp.endless + '차' : '제 ' + (RUN.stage+1) + ' 전') +
+       ' · ' + sp.sub + ' · ' + RUN.score + '점')
     : 'SAMGUK HEROES';
   $('hud-round').textContent = B.round;
   $('hud-ally').textContent = aliveSide(0);
@@ -3297,14 +3334,35 @@ function updateDock(){
   $('a-pause').disabled = (B.phase !== 'battle');
 }
 
+/* ── 배속 (×1 · ×2 · ×3) ──────────────────────────────────────
+   연출 시간에만 곱한다. 규칙·피해에는 아무 영향이 없다. */
+var SPD = 1, SPD_LIST = [1, 2, 3];
+function spdLoad(){
+  try { SPD = parseFloat(localStorage.getItem('samgukheroes_spd')) || 1; } catch(e){ SPD = 1; }
+  if(SPD_LIST.indexOf(SPD) < 0) SPD = 1;
+}
+function setSpeed(v){
+  SPD = v;
+  try { localStorage.setItem('samgukheroes_spd', String(SPD)); } catch(e){}
+  var b = $('btn-spd');
+  b.textContent = '×' + SPD;
+  b.className = SPD > 1 ? 'fast' : '';
+}
+function cycleSpeed(){
+  var i = SPD_LIST.indexOf(SPD);
+  setSpeed(SPD_LIST[(i + 1) % SPD_LIST.length]);
+  toast('전투 속도 ×' + SPD);
+}
+
 /* ── 자동 전투 켜고 끄기 ───────────────────────────────────── */
 var autoTimer = 0;
 function setAuto(v){
   AUTO = !!v;
   autoSave();
   updateDock();
-  toast(AUTO ? '자동 전투 켜짐 — 전투와 보상을 알아서 진행합니다' : '자동 전투 꺼짐');
-  if(AUTO) autoKick();
+  toast(AUTO ? '자동 전투 켜짐 — 전투·보상·재시작을 알아서 진행합니다' : '자동 전투 꺼짐');
+  if(AUTO){ autoKick(); if(screenOn() === 'sc-over') startOverCount(); }
+  else { clearTimeout(overTimer); if(screenOn() === 'sc-over') overLabel(); }
 }
 /* 지금이 아군 차례인데 손이 멈춰 있으면 바로 이어서 둔다 */
 function autoKick(){
@@ -3322,7 +3380,7 @@ function autoKick(){
 }
 function autoAfter(ms, fn){
   clearTimeout(autoTimer);
-  autoTimer = setTimeout(fn, ms);
+  autoTimer = setTimeout(fn, Math.max(120, ms / SPD));   // 배속은 화면 전환도 같이 빠르게
 }
 /* 보상 자동 선택 : 영입 > 위급하면 회복 > 무력 > 체력 > 방어 > 속도 */
 function autoTakeReward(){
@@ -3357,7 +3415,8 @@ function screenOn(){
   return null;
 }
 function toTitle(){
-  clearTimeout(autoTimer);
+  clearTimeout(autoTimer); clearTimeout(overTimer);
+  RUN.canGo = 0;
   B.phase = 'idle';
   seqClear(); FX.length = 0;
   hl = null;
@@ -3410,8 +3469,10 @@ function rosterHtml(){
   return html;
 }
 function showBrief(){
-  var sp = STAGES[RUN.stage], i, j;
-  $('br-step').textContent = '제 ' + (RUN.stage+1) + ' 전 / ' + STAGES.length + ' · ' + sp.sub;
+  var sp = stageAt(RUN.stage), i, j;
+  $('br-step').textContent = sp.endless
+    ? ('천하통일 이후 · 무한 정벌 ' + sp.endless + '차')
+    : ('제 ' + (RUN.stage+1) + ' 전 / ' + STAGES.length + ' · ' + sp.sub);
   $('br-name').textContent = sp.nm;
   $('br-desc').textContent = sp.ds;
   var fh = '';
@@ -3431,7 +3492,7 @@ function sortie(){
   showScreen(null);
   Ads.clear('over');
   startBattle();
-  banner(STAGES[RUN.stage].nm, '출 진', 1100);
+  banner(stageAt(RUN.stage).nm, '출 진', 1100);
 }
 /* ── 보상 ─────────────────────────────────────────────────── */
 var rwOpts = [], rwSel = -1;
@@ -3488,7 +3549,7 @@ function showReward(){
   rwSel = -1;
   $('btn-rw-go').disabled = true;
   $('rw-title').textContent = '승 리!';
-  $('rw-sub').innerHTML = STAGES[RUN.stage-1].nm + ' 돌파 · 현재 <b style="color:#f2c46b">' +
+  $('rw-sub').innerHTML = stageAt(RUN.stage-1).nm + ' 돌파 · 현재 <b style="color:#f2c46b">' +
                           RUN.score + '</b>점<br>보상 하나를 고르세요';
   $('rw-desc').innerHTML = '';
   B.phase = 'idle';
@@ -3524,9 +3585,40 @@ function takeReward(){
 function rankOf(s){
   return s>=RANK.S?'S':(s>=RANK.A?'A':(s>=RANK.B?'B':(s>=RANK.C?'C':'D')));
 }
+/* 결과 화면에서 5초 세고 자동으로 이어 가기 (자동 전투일 때만) */
+var overTimer = 0, overLeft = 0;
+function overLabel(){
+  var b = $('btn-retry');
+  var base = RUN.canGo ? '무한 정벌 계속' : '다시 하기';
+  b.textContent = (AUTO && overLeft > 0) ? (base + ' (' + overLeft + ')') : base;
+}
+function startOverCount(){
+  clearTimeout(overTimer);
+  if(!AUTO || screenOn() !== 'sc-over') return;
+  overLeft = 5;
+  overLabel();
+  overTimer = setTimeout(tickOver, 1000);
+}
+function tickOver(){
+  clearTimeout(overTimer);
+  if(!AUTO || screenOn() !== 'sc-over'){ overLeft = 0; overLabel(); return; }
+  overLeft--;
+  overLabel();
+  if(overLeft <= 0){ $('btn-retry').click(); return; }
+  overTimer = setTimeout(tickOver, 1000);
+}
+/* 천하통일 뒤 무한 정벌로 이어 간다 */
+function continueEndless(){
+  clearTimeout(overTimer);
+  Ads.clear('over');
+  RUN.over = 0; RUN.canGo = 0;
+  B.phase = 'idle';
+  showReward();
+}
 function gameOver(win){
-  clearTimeout(autoTimer);
+  clearTimeout(autoTimer); clearTimeout(overTimer);
   RUN.over = 1;
+  RUN.canGo = win ? 1 : 0;
   RUN.win = win ? 1 : 0;
   RUN.playMs = now() - RUN.t0;
   B.phase = 'over';
@@ -3535,14 +3627,17 @@ function gameOver(win){
   if(isNew){ BEST = s; saveBest(); }
   $('r-title').textContent = win ? '천 하 통 일' : '전 멸';
   $('r-title').style.color = win ? '#f2c46b' : '#e0554c';
-  $('r-sub').textContent = win ? '여포를 꺾고 이름을 남겼습니다' : '한 판 더 이어 볼까요?';
+  $('r-sub').textContent = win ? '여포를 꺾었습니다 — 이제 무한 정벌이 열립니다'
+                               : '한 판 더 이어 볼까요?';
   $('r-new').style.display = isNew ? 'block' : 'none';
   var rk = rankOf(s);
   $('r-rank').textContent = rk;
   $('r-rank').style.color = rk==='S'?'#f2c46b':(rk==='A'?'#5fd6b4':(rk==='B'?'#7fb6f0':'#a08a7c'));
   $('r-score').textContent = s;
   $('r-best').textContent = BEST;
-  $('r-stage').textContent = (win ? STAGES.length : RUN.stage) + ' / ' + STAGES.length;
+  var inf = Math.max(0, RUN.stage - STAGES.length);
+  $('r-stage').textContent = inf ? ('통일 + 무한 ' + inf + '차')
+                                 : (RUN.stage + ' / ' + STAGES.length);
   $('r-kill').textContent = RUN.kills;
   $('r-fac').textContent = facOf(RUN.fac).nm;
   var mn = Math.floor(RUN.playMs/60000), sc2 = Math.floor(RUN.playMs/1000)%60;
@@ -3551,6 +3646,8 @@ function gameOver(win){
   $('btn-home').disabled = true;
   showScreen('sc-over');
   refreshHUD(); updateDock();
+  overLeft = 0; overLabel();
+  if(AUTO) startOverCount();
   // 광고는 결과 화면이 실제로 뜬 뒤에 삽입한다
   Ads.clear('over');
   setTimeout(function(){ Ads.fill('over'); }, 30);
@@ -3605,11 +3702,16 @@ function bindInput(){
   $('btn-resume').addEventListener('click', function(){ showScreen(null); updateDock(); });
   $('btn-quit').addEventListener('click', function(){ gameOver(false); });
   $('btn-retry').addEventListener('click', function(){
+    clearTimeout(overTimer);
+    if(RUN.canGo){ continueEndless(); return; }   // 천하통일 → 무한 정벌로
     Ads.clear('over');
     startRun(RUN.fac);
     showBrief();
   });
-  $('btn-home').addEventListener('click', function(){ Ads.clear('over'); toTitle(); });
+  $('btn-home').addEventListener('click', function(){
+    clearTimeout(overTimer); Ads.clear('over'); toTitle();
+  });
+  $('btn-spd').addEventListener('click', cycleSpeed);
 
   document.addEventListener('keydown', function(e){
     if(e.key === 'Escape'){ if(B.phase==='battle' && !screenOn()) showScreen('sc-pause'); }
@@ -3618,6 +3720,7 @@ function bindInput(){
     else if(e.key === ' ' ) { e.preventDefault(); pressWait(); }
     else if(e.key === 'z' || e.key === 'Z') pressUndo();
     else if(e.key === 't' || e.key === 'T') setAuto(!AUTO);
+    else if(e.key === 'f' || e.key === 'F') cycleSpeed();
   });
 }
 
@@ -3640,7 +3743,7 @@ function update(dt){
   gt += dt;
   var i;
   if(screenOn() === 'sc-pause') return;      // 일시정지는 연출까지 멈춘다
-  var sp = AUTO ? 1.7 : 1;                   // 자동일 때는 조금 빠르게 보여 준다
+  var sp = SPD;                              // 배속(×1·×2·×3)
   updateSeq(dt*sp);
   updateFX(dt*sp);
   for(i=0;i<B.units.length;i++){
@@ -3671,7 +3774,9 @@ function boot(){
   Ads.fill('top');
   loadBest();
   autoLoad();
+  spdLoad();
   bindInput();
+  setSpeed(SPD);
   window.addEventListener('resize', function(){ resize(); });
   if(window.ResizeObserver){
     try { new ResizeObserver(function(){ resize(); }).observe($('stage')); } catch(e){}
@@ -3901,6 +4006,8 @@ function devHooks(){
     pickAt:function(x,y){ return pickAt(x,y); },
     setHeadless:function(v){ headless = !!v; },
     setAuto:function(v){ setAuto(v); return AUTO; },
+    setSpeed:function(v){ setSpeed(v); return SPD; },
+    stageAt:stageAt, endlessSpec:endlessSpec,
     isAuto:function(){ return AUTO; },
     setFast:function(v){ FAST = !!v; },
     busy:busy, seq:function(){ return seq.length; },
